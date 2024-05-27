@@ -7,7 +7,7 @@ import csv
 
 
 # Define the base path
-base_path = "https://github.com/harveythw/Ethereum-Fraud"
+base_path = "./"
 
 # Load the preprocessor pipeline and the models
 preprocessor = joblib.load(base_path + 'preprocessor.joblib')
