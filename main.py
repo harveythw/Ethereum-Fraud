@@ -4,16 +4,15 @@ import pandas as pd
 import numpy as np
 from io import StringIO
 import csv
+import matplotlib.pyplot as plt
 
-
-# Define the base path
-base_path = "./"
+Base_path = "./"
 
 # Load the preprocessor pipeline and the models
-preprocessor = joblib.load(base_path + 'preprocessor.joblib')
-svc_model = joblib.load(base_path + 'Support Vector Classifier_original.joblib')
-gb_model = joblib.load(base_path + 'Gradient Boosting Classifier_original.joblib')
-rf_model = joblib.load(base_path + 'Random Forest Classifier_original.joblib')
+preprocessor = joblib.load(Base_path + 'preprocessor.joblib')
+svc_model = joblib.load(Base_path + 'Support Vector Classifier_original.joblib')
+gb_model = joblib.load(Base_path + 'Gradient Boosting Classifier_original.joblib')
+rf_model = joblib.load(Base_path + 'Random Forest Classifier_original.joblib')
 
 
 st.title(
@@ -21,8 +20,8 @@ st.title(
 
 
 # Define the tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Home", "Data Upload", "Data Preprocessing", "Fraud Prediction", "Insights and Actions"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    ["Home", "Data Upload", "Data Preprocessing", "Fraud Prediction", "Insights and Actions", "Model Performance"])
 
 
 # Content for Tab 1 - Home
@@ -77,6 +76,7 @@ with tab2:
 
     # Sample template data
     template_data = {
+        "Index": [],
         "time_diff_between_first_and_last_(mins)": [],
         "min_value_received": [],
         "min_value_sent_to_contract": [],
@@ -88,7 +88,7 @@ with tab2:
         "erc20_uniq_rec_contract_addr": []
     }
 
-    relevant_columns = list(template_data.keys())
+    relevant_columns = list(template_data.keys())[1:]  # Exclude the "Index" column
 
     def generate_template_csv():
         output = StringIO()
@@ -149,7 +149,7 @@ with tab2:
             # Store the data in the session state
             st.session_state['uploaded_data'] = df
             st.write("Data submitted successfully!")
-            st.write(df)
+            # st.write(df)
 
     else:
         uploaded_file = st.file_uploader("Choose a file", type=['csv', 'xlsx'])
@@ -164,14 +164,14 @@ with tab2:
             # Convert column names to snake case
             df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
 
-            st.write(df.columns)
+            # st.write(df.columns)
 
             # Filter the columns to keep only the required ones
             df = df[relevant_columns]
 
             st.session_state['uploaded_data'] = df
             st.write("File uploaded successfully!")
-            st.write(df)
+            # st.write(df)
 
 
 # Content for Tab 3 - Data Preprocessing
@@ -217,6 +217,9 @@ with tab4:
         rf_predictions = rf_model.predict(df)
 
         if (len(df) == 1):
+            # Counter for the number of positive predictions
+            positive_predictions_counter = 0
+
             # Create a row layout to display predictions side by side
             col1, col2, col3 = st.columns(3)
 
@@ -227,6 +230,7 @@ with tab4:
                     st.success("Transaction appears legitimate.")
                 else:
                     st.error("Alert: High fraud probability!")
+                    positive_predictions_counter += 1
 
             # Display GBC prediction
             with col2:
@@ -235,6 +239,7 @@ with tab4:
                     st.success("Transaction appears legitimate.")
                 else:
                     st.error("Alert: High fraud probability!")
+                    positive_predictions_counter += 1
 
             # Display RFC prediction
             with col3:
@@ -243,16 +248,22 @@ with tab4:
                     st.success("Transaction appears legitimate.")
                 else:
                     st.error("Alert: High fraud probability!")
+                    positive_predictions_counter += 1
 
-            # Combine predictions and determine the majority vote
-            final_predictions = np.argmax(np.array([svc_predictions, gb_predictions, rf_predictions]), axis=0)
+            # # Combine predictions and determine the majority vote
+            # final_predictions = np.argmax([svc_predictions, gb_predictions, rf_predictions])
+            #
+            # # Display the final prediction outcome for each row
+            # if final_predictions == 0:
+            #     st.success("The majority vote indicates that this transaction appears legitimate.")
+            # else:
+            #     st.error("Alert: The majority vote indicates a high probability of fraud for this transaction.")
 
-            # Display the final prediction outcome for each row
-            for i, pred in enumerate(final_predictions):
-                if pred == 0:
-                    st.success("The majority vote indicates that this transaction appears legitimate.")
-                else:
-                    st.error("Alert: The majority vote indicates a high probability of fraud for this transaction.")
+            # Determine the final prediction based on the majority vote
+            if positive_predictions_counter > 1:
+                st.error("Alert: The majority vote indicates a high probability of fraud for this transaction.")
+            else:
+                st.success("The majority vote indicates that this transaction appears legitimate.")
 
         else:
             # Append predictions to the DataFrame
@@ -292,5 +303,163 @@ with tab5:
         # Example report (you can replace this with your actual report logic)
         st.write("**Summary Statistics**")
         st.write(df.describe())
+
+        # Distribution of Time Differences
+        with st.expander("Distribution of Time Differences"):
+            fig, ax = plt.subplots()
+            ax.hist(df['time_diff_between_first_and_last_(mins)'], bins=50, edgecolor='black')
+            ax.set_title('Distribution of Time Differences (mins)')
+            ax.set_xlabel('Time Difference (mins)')
+            ax.set_ylabel('Frequency')
+            st.pyplot(fig)
+
+        # Min and Max Value Sent/Received
+        with st.expander("Min and Max Value Sent/Received"):
+            fig, ax = plt.subplots(1, 3, figsize=(18, 6))
+
+            ax[0].hist(df['min_value_received'], bins=50, edgecolor='black')
+            ax[0].set_title('Min Value Received')
+            ax[0].set_xlabel('Min Value Received')
+            ax[0].set_ylabel('Frequency')
+
+            ax[1].hist(df['min_value_sent_to_contract'], bins=50, edgecolor='black')
+            ax[1].set_title('Min Value Sent to Contract')
+            ax[1].set_xlabel('Min Value Sent to Contract')
+            ax[1].set_ylabel('Frequency')
+
+            ax[2].hist(df['max_val_sent_to_contract'], bins=50, edgecolor='black')
+            ax[2].set_title('Max Value Sent to Contract')
+            ax[2].set_xlabel('Max Value Sent to Contract')
+            ax[2].set_ylabel('Frequency')
+
+            st.pyplot(fig)
+
+        # Total Ether Sent vs. Received
+        with st.expander("Total Ether Sent vs. Received"):
+            fig, ax = plt.subplots()
+            ax.scatter(df['total_ether_sent'], df['total_ether_received'], alpha=0.5)
+            ax.set_title('Total Ether Sent vs. Received')
+            ax.set_xlabel('Total Ether Sent')
+            ax.set_ylabel('Total Ether Received')
+            st.pyplot(fig)
+
+        # Ether Balance Analysis
+        with st.expander("Ether Balance Analysis"):
+            fig, ax = plt.subplots()
+            ax.hist(df['total_ether_balance'], bins=50, edgecolor='black')
+            ax.set_title('Ether Balance Distribution')
+            ax.set_xlabel('Total Ether Balance')
+            ax.set_ylabel('Frequency')
+            st.pyplot(fig)
+
+        # Unique ERC20 Sent and Received Addresses
+        with st.expander("Unique ERC20 Sent and Received Addresses"):
+            fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+            ax[0].hist(df['erc20_uniq_sent_addr.1'], bins=50, edgecolor='black')
+            ax[0].set_title('Unique ERC20 Sent Addresses')
+            ax[0].set_xlabel('Unique ERC20 Sent Addresses')
+            ax[0].set_ylabel('Frequency')
+
+            ax[1].hist(df['erc20_uniq_rec_contract_addr'], bins=50, edgecolor='black')
+            ax[1].set_title('Unique ERC20 Received Contract Addresses')
+            ax[1].set_xlabel('Unique ERC20 Received Contract Addresses')
+            ax[1].set_ylabel('Frequency')
+
+            st.pyplot(fig)
+
+        # Correlation Heatmap
+        with st.expander("Correlation Heatmap"):
+            fig, ax = plt.subplots(figsize=(10, 8))
+            corr = df.corr()
+            cax = ax.matshow(corr, cmap='coolwarm')
+            fig.colorbar(cax)
+            ax.set_xticks(np.arange(len(corr.columns)))
+            ax.set_yticks(np.arange(len(corr.columns)))
+            ax.set_xticklabels(corr.columns, rotation=90)
+            ax.set_yticklabels(corr.columns)
+            ax.set_title('Correlation Heatmap')
+            st.pyplot(fig)
+
+
     else:
         st.write("Please upload your data in the 'Data Upload' tab.")
+
+# Content for Tab 6 - Model Performance
+with tab6:
+    st.header("Model Performance")
+    st.write("Visualizing model performance.")
+
+    # Load the results DataFrame from the CSV file
+    results_df = pd.read_csv('results_original.csv')
+
+    st.write(results_df)
+
+    # Abbreviations for model names
+    abbreviation_mapping = {
+        "Support Vector Classifier": "SVC",
+        "Random Forest Classifier": "RF",
+        "Gradient Boosting Classifier": "GB"
+    }
+
+    # Replace model names with abbreviations
+    results_df['Model'] = results_df['Model'].map(abbreviation_mapping)
+
+    # Train and Test Accuracy plot
+    with st.expander("Train and Test Accuracy"):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        results_df[['Model', 'Train Accuracy', 'Test Accuracy']].set_index('Model').plot(kind='bar', ax=ax)
+        ax.set_ylabel('Accuracy')
+        ax.set_title('Train and Test Accuracy')
+        ax.legend(['Train Accuracy', 'Test Accuracy'])
+        ax.set_xticklabels(results_df['Model'], rotation=0)  # Adjust the rotation angle as needed
+        st.pyplot(fig)
+
+
+    # Precision, Recall, and F1-Score plot
+    with st.expander("Precision, Recall, and F1-Score"):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bar_width = 0.15
+        metrics = ['Precision_0', 'Recall_0', 'F1_0', 'Precision_1', 'Recall_1', 'F1_1']
+        for i, metric in enumerate(metrics):
+            x = np.arange(len(results_df))
+            ax.bar(x + i * bar_width, results_df[metric], width=bar_width, label=metric)
+        ax.set_xlabel('Model')
+        ax.set_ylabel('Score')
+        ax.set_title('Precision, Recall, and F1-Score')
+        ax.set_xticks(np.arange(len(results_df)) + bar_width * (len(metrics) - 1) / 2)
+        ax.set_xticklabels(results_df['Model'])
+        ax.legend()
+        st.pyplot(fig)
+
+
+    # Confusion Matrix Heatmaps
+    with st.expander("Confusion Matrices"):
+        num_models = len(results_df)
+        columns = st.columns(num_models)
+        for idx, row in results_df.iterrows():
+            cm = np.array([[row['True Positive'], row['False Positive']],
+                           [row['False Negative'], row['True Negative']]])
+            fig, ax = plt.subplots()
+            cax = ax.matshow(cm, cmap='Blues')
+            plt.colorbar(cax)
+            for (i, j), val in np.ndenumerate(cm):
+                ax.text(j, i, f'{val}', ha='center', va='center', color='black')
+            ax.set_xticklabels(['', 'Predicted Positive', 'Predicted Negative'])
+            ax.set_yticklabels(['', 'Actual Positive', 'Actual Negative'])
+            ax.set_xlabel('Predicted')
+            ax.set_ylabel('Actual')
+            ax.set_title(f'Confusion Matrix\n{row["Model"]}')
+            with columns[idx]:
+                st.pyplot(fig)
+
+
+    # ROC AUC plot
+    with st.expander("ROC AUC"):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.bar(results_df['Model'], results_df['ROC AUC'])
+        ax.set_xlabel('Model')
+        ax.set_ylabel('ROC AUC')
+        ax.set_title('ROC AUC')
+        ax.set_xticklabels(results_df['Model'], rotation=0)
+        st.pyplot(fig)
